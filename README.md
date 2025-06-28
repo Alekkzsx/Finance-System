@@ -1,30 +1,24 @@
-# Personal finance system
+# 📊 Sistema de Controle Financeiro para Amazon Seller
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+Este é um sistema web desenvolvido para ajudar vendedores da Amazon (Amazon Sellers) a **organizar e visualizar suas finanças de forma prática, intuitiva e inteligente**. Com funcionalidades voltadas à realidade de quem vende online, o sistema permite controle total de **receitas, despesas, desempenho de vendas e análise gráfica** dos resultados.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/alekkzsxs-projects/v0-personal-finance-system)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/to7gzXlPcOD)
+---
 
-## Overview
+## ✨ Funcionalidades Principais
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
-
-## Deployment
-
-Your project is live at:
-
-**[https://vercel.com/alekkzsxs-projects/v0-personal-finance-system](https://vercel.com/alekkzsxs-projects/v0-personal-finance-system)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.dev/chat/projects/to7gzXlPcOD](https://v0.dev/chat/projects/to7gzXlPcOD)**
-
-## How It Works
-
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+- ✅ Cadastro e login com segurança individual por usuário
+- 🧾 Cadastro de **receitas** e **despesas** com campos personalizados (data, descrição, valor, ID único)
+- 📌 Cada item possui um `ID` único por tipo, com organização estável
+- 📈 **Dashboard completo** com:
+  - Gráficos interativos: pizza, barra, linha e vela
+  - Filtro para ver apenas receitas, apenas despesas ou totais
+  - Dia de pico de vendas
+  - Produtos com mais e menos vendas
+- 🧭 Interface com **sidebar (menu lateral)** com três áreas principais:
+  - **Dashboard**
+  - **Cadastro de dados**
+  - **Configurações do usuário**
+- 🔒 Usuários acessam apenas seus próprios dados (isolamento por login)
+- 📂 Armazenamento local em arquivos JSON separados por usuário
+- 🌐 Acesso em rede local: o sistema mostra o IP do servidor automaticamente para facilitar uso em múltiplos dispositivos
+- 🌗 Tema claro e escuro ajustável nas configurações
