@@ -1,6 +1,6 @@
-# 📊 Sistema de Controle Financeiro para Amazon Seller
+# 📊 Sistema de Controle Financeiro para Vendedores
 
-Este é um sistema web desenvolvido para ajudar vendedores da Amazon (Amazon Sellers) a **organizar e visualizar suas finanças de forma prática, intuitiva e inteligente**. Com funcionalidades voltadas à realidade de quem vende online, o sistema permite controle total de **receitas, despesas, desempenho de vendas e análise gráfica** dos resultados.
+Este é um sistema web desenvolvido para ajudar vendedores  a **organizar e visualizar suas finanças de forma prática, intuitiva e inteligente**. Com funcionalidades voltadas à realidade de quem vende online, o sistema permite controle total de **receitas, despesas, desempenho de vendas e análise gráfica** dos resultados.
 
 ---
 
