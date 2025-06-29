@@ -1,24 +1,14 @@
-# 📊 Sistema de Controle Financeiro para Vendedores
-
-Este é um sistema web desenvolvido para ajudar vendedores  a **organizar e visualizar suas finanças de forma prática, intuitiva e inteligente**. Com funcionalidades voltadas à realidade de quem vende online, o sistema permite controle total de **receitas, despesas, desempenho de vendas e análise gráfica** dos resultados.
-
----
-
-## ✨ Funcionalidades Principais
-
-- ✅ Cadastro e login com segurança individual por usuário
-- 🧾 Cadastro de **receitas** e **despesas** com campos personalizados (data, descrição, valor, ID único)
-- 📌 Cada item possui um `ID` único por tipo, com organização estável
-- 📈 **Dashboard completo** com:
-  - Gráficos interativos: pizza, barra, linha e vela
-  - Filtro para ver apenas receitas, apenas despesas ou totais
-  - Dia de pico de vendas
-  - Produtos com mais e menos vendas
-- 🧭 Interface com **sidebar (menu lateral)** com três áreas principais:
-  - **Dashboard**
-  - **Cadastro de dados**
-  - **Configurações do usuário**
-- 🔒 Usuários acessam apenas seus próprios dados (isolamento por login)
-- 📂 Armazenamento local em arquivos JSON separados por usuário
-- 🌐 Acesso em rede local: o sistema mostra o IP do servidor automaticamente para facilitar uso em múltiplos dispositivos
-- 🌗 Tema claro e escuro ajustável nas configurações
+📊 Financial Control System for Sellers
+This is a web system developed to help sellers organize and visualize their finances in a practical, intuitive and intelligent way. With features geared towards the reality of those who sell online, the system allows total control of revenue, expenses, sales performance and graphical analysis of results.
+✨ Main Features
+✅ Registration and login with individual security per user
+🧾 Registration of income and expenses with custom fields (date, description, value, unique ID)
+📌 Each item has a unique ID per type, with stable organization
+📈 Complete dashboard with:
+Interactive graphs: pie, bar, line and candle
+Filter to see only income, only expenses or totals
+Peak sales day
+Products with the most and least sales
+🧭 Interface with sidebar (side menu) with three main areas:
+Dashboard
+Data registration
