@@ -54,6 +54,11 @@ export async function login(formData: FormData) {
   }
 
   try {
+    if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) {
+      console.error("Nenhuma variável de conexão encontrada.")
+      return { error: "Servidor sem acesso ao banco de dados. Contate o administrador." }
+    }
+
     const users = await sql`
       SELECT id, password_hash FROM users WHERE email = ${email}
     `
@@ -72,7 +77,7 @@ export async function login(formData: FormData) {
     await createSession(user.id)
   } catch (error) {
     console.error("Erro no login:", error)
-    return { error: "Erro interno do servidor" }
+    return { error: "Erro de conexão com o banco. Tente novamente mais tarde." }
   }
 
   redirect("/dashboard")

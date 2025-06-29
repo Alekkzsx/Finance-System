@@ -15,15 +15,19 @@ import {
   LineChart,
   Line,
   ResponsiveContainer,
+  Area,
+  AreaChart,
 } from "recharts"
 
 interface ChartData {
   dailyData: Array<{ date: string; income: number; expense: number }>
   categoryData: Array<{ description: string; amount: number; type: string }>
+  chartData?: any[]
 }
 
 interface FinancialChartsProps extends ChartData {
   type: "pie" | "bar" | "line" | "candlestick"
+  chartDataType: string
   filter: "all" | "income" | "expense"
 }
 
@@ -38,9 +42,26 @@ const COLORS = [
   "#FF7C7C",
   "#8DD1E1",
   "#D084D0",
+  "#FFBB33",
+  "#FF6B6B",
+  "#4ECDC4",
+  "#45B7D1",
+  "#96CEB4",
+  "#FFEAA7",
+  "#DDA0DD",
+  "#98D8C8",
+  "#F7DC6F",
+  "#BB8FCE",
 ]
 
-export function FinancialCharts({ type, dailyData, categoryData, filter }: FinancialChartsProps) {
+export function FinancialCharts({
+  type,
+  dailyData,
+  categoryData,
+  chartData = [],
+  chartDataType,
+  filter,
+}: FinancialChartsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -48,38 +69,86 @@ export function FinancialCharts({ type, dailyData, categoryData, filter }: Finan
     }).format(value)
   }
 
-  const pieData = useMemo(() => {
-    return categoryData.map((item, index) => ({
-      name: item.description,
-      value: item.amount,
-      fill: COLORS[index % COLORS.length],
-    }))
-  }, [categoryData])
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      return date.toLocaleDateString("pt-BR", {
+        month: "short",
+        day: "numeric",
+      })
+    } catch {
+      return dateString
+    }
+  }
 
-  const barData = useMemo(() => {
-    return dailyData
-      .slice(0, 10)
-      .reverse()
-      .map((item) => ({
-        date: new Date(item.date).toLocaleDateString("pt-BR", { month: "short", day: "numeric" }),
-        receitas: item.income,
-        despesas: item.expense,
-        saldo: item.income - item.expense,
+  // Preparar dados baseados no tipo de gráfico e dados selecionados
+  const processedData = useMemo(() => {
+    console.log("Chart Data Type:", chartDataType)
+    console.log("Chart Data:", chartData)
+    console.log("Daily Data:", dailyData)
+    console.log("Category Data:", categoryData)
+
+    if (chartDataType === "revenue_by_product" || chartDataType === "expense_by_category") {
+      return chartData.map((item, index) => ({
+        name: item.description || "Sem descrição",
+        value: Number(item.amount) || 0,
+        fill: COLORS[index % COLORS.length],
       }))
-  }, [dailyData])
+    }
 
-  const lineData = useMemo(() => {
+    if (chartDataType === "profit_by_week" || chartDataType === "profit_by_month") {
+      return chartData
+        .map((item) => ({
+          period: formatDate(item.period),
+          receitas: Number(item.income) || 0,
+          despesas: Number(item.expense) || 0,
+          lucro: Number(item.profit) || 0,
+        }))
+        .reverse()
+    }
+
+    if (chartDataType === "revenue" || chartDataType === "expense") {
+      return chartData
+        .map((item) => ({
+          date: formatDate(item.date),
+          valor: Number(item.amount) || 0,
+        }))
+        .reverse()
+        .slice(0, 15)
+    }
+
+    // Default: revenue_vs_expense usando dailyData
     return dailyData
       .slice(0, 15)
       .reverse()
       .map((item) => ({
-        date: new Date(item.date).toLocaleDateString("pt-BR", { month: "short", day: "numeric" }),
-        valor: filter === "income" ? item.income : filter === "expense" ? item.expense : item.income - item.expense,
+        date: formatDate(item.date),
+        receitas: Number(item.income) || 0,
+        despesas: Number(item.expense) || 0,
+        saldo: Number(item.income) - Number(item.expense),
+        valor:
+          filter === "income"
+            ? Number(item.income)
+            : filter === "expense"
+              ? Number(item.expense)
+              : Number(item.income) - Number(item.expense),
       }))
-  }, [dailyData, filter])
+  }, [chartData, chartDataType, dailyData, filter])
+
+  // Dados para gráfico de pizza
+  const pieData = useMemo(() => {
+    if (chartDataType === "revenue_by_product" || chartDataType === "expense_by_category") {
+      return processedData
+    }
+
+    return categoryData.map((item, index) => ({
+      name: item.description,
+      value: Number(item.amount) || 0,
+      fill: COLORS[index % COLORS.length],
+    }))
+  }, [categoryData, processedData, chartDataType])
 
   const candlestickData = useMemo(() => {
-    // Agrupar dados por semana para candlestick
     const weeklyData: { [key: string]: { income: number; expense: number; count: number } } = {}
 
     dailyData.forEach((item) => {
@@ -91,22 +160,37 @@ export function FinancialCharts({ type, dailyData, categoryData, filter }: Finan
         weeklyData[weekKey] = { income: 0, expense: 0, count: 0 }
       }
 
-      weeklyData[weekKey].income += item.income
-      weeklyData[weekKey].expense += item.expense
+      weeklyData[weekKey].income += Number(item.income) || 0
+      weeklyData[weekKey].expense += Number(item.expense) || 0
       weeklyData[weekKey].count++
     })
 
     return Object.entries(weeklyData)
       .map(([week, data]) => ({
-        week: new Date(week).toLocaleDateString("pt-BR", { month: "short", day: "numeric" }),
-        open: data.income * 0.9,
-        high: Math.max(data.income, data.expense),
-        low: Math.min(data.income, data.expense) * 0.8,
-        close: data.expense,
+        week: formatDate(week),
+        abertura: data.income * 0.9,
+        maximo: Math.max(data.income, data.expense),
+        minimo: Math.min(data.income, data.expense) * 0.8,
+        fechamento: data.expense,
         volume: data.count,
       }))
       .slice(0, 8)
   }, [dailyData])
+
+  // Verificar se há dados para exibir
+  if (!processedData || processedData.length === 0) {
+    return (
+      <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <p className="text-lg">📊 Nenhum dado disponível</p>
+          <p className="text-sm mt-2">Adicione algumas transações para ver os gráficos</p>
+          <p className="text-xs mt-1">
+            Tipo: {chartDataType} | Filtro: {filter}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (type === "pie") {
     return (
@@ -138,15 +222,41 @@ export function FinancialCharts({ type, dailyData, categoryData, filter }: Finan
     return (
       <div className="h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={barData}>
+          <BarChart data={processedData}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
+            <XAxis
+              dataKey={
+                chartDataType.includes("profit_by")
+                  ? "period"
+                  : chartDataType === "revenue" || chartDataType === "expense"
+                    ? "date"
+                    : "date"
+              }
+              tick={{ fontSize: 12 }}
+            />
             <YAxis tickFormatter={(value) => `R$ ${value}`} />
             <Tooltip formatter={(value: number) => formatCurrency(value)} />
             <Legend />
-            <Bar dataKey="receitas" fill="#10B981" name="Receitas" />
-            <Bar dataKey="despesas" fill="#EF4444" name="Despesas" />
-            <Bar dataKey="saldo" fill="#3B82F6" name="Saldo" />
+
+            {chartDataType.includes("profit_by") ? (
+              <>
+                <Bar dataKey="receitas" fill="#10B981" name="Receitas" />
+                <Bar dataKey="despesas" fill="#EF4444" name="Despesas" />
+                <Bar dataKey="lucro" fill="#3B82F6" name="Lucro" />
+              </>
+            ) : chartDataType === "revenue" || chartDataType === "expense" ? (
+              <Bar
+                dataKey="valor"
+                fill={chartDataType === "revenue" ? "#10B981" : "#EF4444"}
+                name={chartDataType === "revenue" ? "Receitas" : "Despesas"}
+              />
+            ) : (
+              <>
+                <Bar dataKey="receitas" fill="#10B981" name="Receitas" />
+                <Bar dataKey="despesas" fill="#EF4444" name="Despesas" />
+                <Bar dataKey="saldo" fill="#3B82F6" name="Saldo" />
+              </>
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -157,19 +267,45 @@ export function FinancialCharts({ type, dailyData, categoryData, filter }: Finan
     return (
       <div className="h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={lineData}>
+          <LineChart data={processedData}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
+            <XAxis
+              dataKey={
+                chartDataType.includes("profit_by")
+                  ? "period"
+                  : chartDataType === "revenue" || chartDataType === "expense"
+                    ? "date"
+                    : "date"
+              }
+              tick={{ fontSize: 12 }}
+            />
             <YAxis tickFormatter={(value) => `R$ ${value}`} />
             <Tooltip formatter={(value: number) => formatCurrency(value)} />
             <Legend />
-            <Line
-              type="monotone"
-              dataKey="valor"
-              stroke="#8884d8"
-              strokeWidth={2}
-              name={filter === "income" ? "Receitas" : filter === "expense" ? "Despesas" : "Saldo"}
-            />
+
+            {chartDataType.includes("profit_by") ? (
+              <>
+                <Line type="monotone" dataKey="receitas" stroke="#10B981" strokeWidth={2} name="Receitas" />
+                <Line type="monotone" dataKey="despesas" stroke="#EF4444" strokeWidth={2} name="Despesas" />
+                <Line type="monotone" dataKey="lucro" stroke="#3B82F6" strokeWidth={3} name="Lucro" />
+              </>
+            ) : chartDataType === "revenue" || chartDataType === "expense" ? (
+              <Line
+                type="monotone"
+                dataKey="valor"
+                stroke={chartDataType === "revenue" ? "#10B981" : "#EF4444"}
+                strokeWidth={2}
+                name={chartDataType === "revenue" ? "Receitas" : "Despesas"}
+              />
+            ) : (
+              <Line
+                type="monotone"
+                dataKey="valor"
+                stroke="#8884d8"
+                strokeWidth={2}
+                name={filter === "income" ? "Receitas" : filter === "expense" ? "Despesas" : "Saldo"}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -180,25 +316,54 @@ export function FinancialCharts({ type, dailyData, categoryData, filter }: Finan
     return (
       <div className="h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={candlestickData}>
+          <AreaChart data={candlestickData}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="week" />
+            <XAxis dataKey="week" tick={{ fontSize: 12 }} />
             <YAxis tickFormatter={(value) => `R$ ${value}`} />
             <Tooltip
               formatter={(value: number) => formatCurrency(value)}
               labelFormatter={(label) => `Semana: ${label}`}
             />
             <Legend />
-            <Bar dataKey="high" fill="#10B981" name="Máximo" />
-            <Bar dataKey="low" fill="#EF4444" name="Mínimo" />
-            <Bar dataKey="close" fill="#3B82F6" name="Fechamento" />
-          </BarChart>
+            <Area
+              type="monotone"
+              dataKey="maximo"
+              stackId="1"
+              stroke="#10B981"
+              fill="#10B981"
+              fillOpacity={0.6}
+              name="Máximo"
+            />
+            <Area
+              type="monotone"
+              dataKey="minimo"
+              stackId="2"
+              stroke="#EF4444"
+              fill="#EF4444"
+              fillOpacity={0.6}
+              name="Mínimo"
+            />
+            <Area
+              type="monotone"
+              dataKey="fechamento"
+              stackId="3"
+              stroke="#3B82F6"
+              fill="#3B82F6"
+              fillOpacity={0.8}
+              name="Fechamento"
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     )
   }
 
   return (
-    <div className="h-[400px] flex items-center justify-center text-muted-foreground">Selecione um tipo de gráfico</div>
+    <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+      <div className="text-center">
+        <p>Selecione um tipo de gráfico</p>
+        <p className="text-sm mt-2">Dados disponíveis: {processedData.length} registros</p>
+      </div>
+    </div>
   )
 }
