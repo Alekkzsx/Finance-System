@@ -9,19 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import {
-  Edit,
-  Trash2,
-  Plus,
-  Minus,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Filter,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-} from "lucide-react"
+import { Edit, Trash2, Plus, Minus, ChevronLeft, ChevronRight } from "lucide-react"
 import { createTransaction, deleteTransaction } from "@/app/actions/transactions"
 import { EditTransactionDialog } from "./edit-transaction-dialog"
 import type { User, Transaction } from "@/lib/db"
@@ -38,25 +26,13 @@ interface DataEntryContentProps {
       hasPrev: boolean
     }
   }
-  currentFilter: "all" | "income" | "expense"
-  currentSearch: string
-  currentSortBy: string
-  currentSortOrder: "asc" | "desc"
 }
 
-export function DataEntryContent({
-  user,
-  data,
-  currentFilter,
-  currentSearch,
-  currentSortBy,
-  currentSortOrder,
-}: DataEntryContentProps) {
+export function DataEntryContent({ user, data }: DataEntryContentProps) {
   const [error, setError] = useState<string>("")
   const [success, setSuccess] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
-  const [searchTerm, setSearchTerm] = useState(currentSearch)
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -80,6 +56,7 @@ export function DataEntryContent({
       setError(result.error)
     } else if (result?.success) {
       setSuccess("Transação adicionada com sucesso!")
+      // Reset form
       const form = document.getElementById("add-transaction-form") as HTMLFormElement
       form?.reset()
     }
@@ -94,70 +71,14 @@ export function DataEntryContent({
   }
 
   const handlePageChange = (page: number) => {
-    const params = new URLSearchParams(window.location.search)
-    params.set("page", page.toString())
-    window.location.href = `/data-entry?${params.toString()}`
-  }
-
-  const handleFilterChange = (filter: string) => {
-    const params = new URLSearchParams(window.location.search)
-    params.set("filter", filter)
-    params.delete("page") // Reset to first page
-    window.location.href = `/data-entry?${params.toString()}`
-  }
-
-  const handleSearch = () => {
-    const params = new URLSearchParams(window.location.search)
-    if (searchTerm) {
-      params.set("search", searchTerm)
-    } else {
-      params.delete("search")
-    }
-    params.delete("page") // Reset to first page
-    window.location.href = `/data-entry?${params.toString()}`
-  }
-
-  const handleSort = (column: string) => {
-    const params = new URLSearchParams(window.location.search)
-
-    if (currentSortBy === column) {
-      // Toggle order if same column
-      params.set("sortOrder", currentSortOrder === "asc" ? "desc" : "asc")
-    } else {
-      // New column, default to asc
-      params.set("sortBy", column)
-      params.set("sortOrder", "asc")
-    }
-
-    params.delete("page") // Reset to first page
-    window.location.href = `/data-entry?${params.toString()}`
-  }
-
-  const getSortIcon = (column: string) => {
-    if (currentSortBy !== column) {
-      return <ArrowUpDown className="h-4 w-4 opacity-50" />
-    }
-    return currentSortOrder === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-  }
-
-  const getFilterLabel = (filter: string) => {
-    switch (filter) {
-      case "income":
-        return "Apenas Receitas"
-      case "expense":
-        return "Apenas Despesas"
-      default:
-        return "Todas as Transações"
-    }
+    window.location.href = `/data-entry?page=${page}`
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">🧾 Cadastro de Dados</h1>
-        <p className="text-muted-foreground">
-          Adicione e gerencie suas receitas e despesas - {getFilterLabel(currentFilter)}
-        </p>
+        <h1 className="text-3xl font-bold">Cadastro de Dados</h1>
+        <p className="text-muted-foreground">Adicione e gerencie suas receitas e despesas</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -244,46 +165,12 @@ export function DataEntryContent({
           </CardContent>
         </Card>
 
-        {/* Lista de transações com filtros e busca */}
+        {/* Lista de transações */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Transações Cadastradas</CardTitle>
-
-            {/* Filtros e busca */}
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-              <div className="flex gap-2 flex-1">
-                <div className="flex-1">
-                  <Input
-                    placeholder="🔍 Buscar por descrição, ID, valor ou data..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  />
-                </div>
-                <Button onClick={handleSearch} variant="outline" size="sm">
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <Select value={currentFilter} onValueChange={handleFilterChange}>
-                <SelectTrigger className="w-[180px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as Transações</SelectItem>
-                  <SelectItem value="income">Apenas Receitas</SelectItem>
-                  <SelectItem value="expense">Apenas Despesas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Informações de paginação */}
-            <div className="flex justify-between items-center text-sm text-muted-foreground">
-              <p>
-                Total: {data.pagination.total} registros
-                {currentSearch && ` (filtrados por "${currentSearch}")`}
-              </p>
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">Total: {data.pagination.total} registros</p>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -309,72 +196,31 @@ export function DataEntryContent({
               </div>
             </div>
           </CardHeader>
-
           <CardContent>
             {data.transactions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <p>Nenhuma transação encontrada.</p>
-                <p className="text-sm">
-                  {currentSearch || currentFilter !== "all"
-                    ? "Tente ajustar os filtros de busca."
-                    : "Adicione sua primeira receita ou despesa!"}
-                </p>
+                <p>Nenhuma transação cadastrada ainda.</p>
+                <p className="text-sm">Adicione sua primeira receita ou despesa!</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/50 select-none"
-                        onClick={() => handleSort("custom_id")}
-                      >
-                        <div className="flex items-center gap-2">
-                          ID Pareado
-                          {getSortIcon("custom_id")}
-                        </div>
-                      </TableHead>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/50 select-none"
-                        onClick={() => handleSort("date")}
-                      >
-                        <div className="flex items-center gap-2">
-                          Data
-                          {getSortIcon("date")}
-                        </div>
-                      </TableHead>
-                      <TableHead
-                        className="cursor-pointer hover:bg-muted/50 select-none"
-                        onClick={() => handleSort("description")}
-                      >
-                        <div className="flex items-center gap-2">
-                          Descrição
-                          {getSortIcon("description")}
-                        </div>
-                      </TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Descrição</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead
-                        className="text-right cursor-pointer hover:bg-muted/50 select-none"
-                        onClick={() => handleSort("amount")}
-                      >
-                        <div className="flex items-center justify-end gap-2">
-                          Valor
-                          {getSortIcon("amount")}
-                        </div>
-                      </TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
                       <TableHead className="text-center">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.transactions.map((transaction) => (
-                      <TableRow key={transaction.id} className="hover:bg-muted/50">
-                        <TableCell className="font-mono font-semibold">
-                          <Badge variant="outline" className="font-mono">
-                            {transaction.custom_id}
-                          </Badge>
-                        </TableCell>
+                      <TableRow key={transaction.id}>
+                        <TableCell className="font-mono font-semibold">{transaction.custom_id}</TableCell>
                         <TableCell>{formatDate(transaction.date)}</TableCell>
-                        <TableCell className="font-medium max-w-[200px] truncate">{transaction.description}</TableCell>
+                        <TableCell className="font-medium">{transaction.description}</TableCell>
                         <TableCell>
                           <Badge
                             variant={transaction.type === "income" ? "default" : "destructive"}
@@ -397,20 +243,10 @@ export function DataEntryContent({
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingTransaction(transaction)}
-                              title="Editar transação"
-                            >
+                            <Button variant="outline" size="sm" onClick={() => setEditingTransaction(transaction)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(transaction.id)}
-                              title="Excluir transação"
-                            >
+                            <Button variant="outline" size="sm" onClick={() => handleDelete(transaction.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>

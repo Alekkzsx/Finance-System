@@ -1,22 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 interface FinancialSummaryProps {
-  totalRevenue: number
-  totalExpense: number
-  netProfit: number
-  filter: "all" | "income" | "expense"
+  summary: {
+    totalIncome: number
+    totalExpenses: number
+    balance: number
+  }
 }
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value)
-}
+export function FinancialSummary({ summary }: FinancialSummaryProps) {
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value)
+  }
 
-export function FinancialSummary({ totalRevenue, totalExpense, netProfit, filter }: FinancialSummaryProps) {
   return (
     <div className="grid md:grid-cols-3 gap-6">
       <Card>
@@ -25,8 +25,7 @@ export function FinancialSummary({ totalRevenue, totalExpense, netProfit, filter
           <TrendingUp className="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">{formatCurrency(totalRevenue)}</div>
-          <p className="text-xs text-muted-foreground mt-1">{filter === "all" ? "Total geral" : "Filtro aplicado"}</p>
+          <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.totalIncome)}</div>
         </CardContent>
       </Card>
 
@@ -36,8 +35,7 @@ export function FinancialSummary({ totalRevenue, totalExpense, netProfit, filter
           <TrendingDown className="h-4 w-4 text-red-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-red-600">{formatCurrency(totalExpense)}</div>
-          <p className="text-xs text-muted-foreground mt-1">{filter === "all" ? "Total geral" : "Filtro aplicado"}</p>
+          <div className="text-2xl font-bold text-red-600">{formatCurrency(summary.totalExpenses)}</div>
         </CardContent>
       </Card>
 
@@ -47,10 +45,9 @@ export function FinancialSummary({ totalRevenue, totalExpense, netProfit, filter
           <DollarSign className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
-          <div className={cn("text-2xl font-bold", netProfit >= 0 ? "text-green-600" : "text-red-600")}>
-            {formatCurrency(netProfit)}
+          <div className={`text-2xl font-bold ${summary.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+            {formatCurrency(summary.balance)}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{filter === "all" ? "Total geral" : "Filtro aplicado"}</p>
         </CardContent>
       </Card>
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useMemo } from "react"
 import {
   PieChart,
   Pie,
@@ -17,15 +17,30 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-interface FinancialChartsProps {
-  data: any[]
-  chartType: "pie" | "bar" | "line" | "candlestick"
-  dataType: string
+interface ChartData {
+  dailyData: Array<{ date: string; income: number; expense: number }>
+  categoryData: Array<{ description: string; amount: number; type: string }>
 }
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D", "#FFC658", "#FF7C7C"]
+interface FinancialChartsProps extends ChartData {
+  type: "pie" | "bar" | "line" | "candlestick"
+  filter: "all" | "income" | "expense"
+}
 
-export function FinancialCharts({ data, chartType, dataType }: FinancialChartsProps) {
+const COLORS = [
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#8884D8",
+  "#82CA9D",
+  "#FFC658",
+  "#FF7C7C",
+  "#8DD1E1",
+  "#D084D0",
+]
+
+export function FinancialCharts({ type, dailyData, categoryData, filter }: FinancialChartsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -33,132 +48,157 @@ export function FinancialCharts({ data, chartType, dataType }: FinancialChartsPr
     }).format(value)
   }
 
-  const getChartTitle = () => {
-    const titles: Record<string, string> = {
-      revenue_by_product: "Receita por Produto",
-      revenue: "Receitas",
-      expense_by_category: "Despesa por Categoria",
-      expense: "Despesas",
-      revenue_vs_expense: "Receita vs Despesa",
-      profit_by_week: "Lucro por Semana",
-      profit_by_month: "Lucro por Mês",
-    }
-    return titles[dataType] || "Dados Financeiros"
-  }
+  const pieData = useMemo(() => {
+    return categoryData.map((item, index) => ({
+      name: item.description,
+      value: item.amount,
+      fill: COLORS[index % COLORS.length],
+    }))
+  }, [categoryData])
 
-  if (!data || data.length === 0) {
+  const barData = useMemo(() => {
+    return dailyData
+      .slice(0, 10)
+      .reverse()
+      .map((item) => ({
+        date: new Date(item.date).toLocaleDateString("pt-BR", { month: "short", day: "numeric" }),
+        receitas: item.income,
+        despesas: item.expense,
+        saldo: item.income - item.expense,
+      }))
+  }, [dailyData])
+
+  const lineData = useMemo(() => {
+    return dailyData
+      .slice(0, 15)
+      .reverse()
+      .map((item) => ({
+        date: new Date(item.date).toLocaleDateString("pt-BR", { month: "short", day: "numeric" }),
+        valor: filter === "income" ? item.income : filter === "expense" ? item.expense : item.income - item.expense,
+      }))
+  }, [dailyData, filter])
+
+  const candlestickData = useMemo(() => {
+    // Agrupar dados por semana para candlestick
+    const weeklyData: { [key: string]: { income: number; expense: number; count: number } } = {}
+
+    dailyData.forEach((item) => {
+      const date = new Date(item.date)
+      const weekStart = new Date(date.setDate(date.getDate() - date.getDay()))
+      const weekKey = weekStart.toISOString().split("T")[0]
+
+      if (!weeklyData[weekKey]) {
+        weeklyData[weekKey] = { income: 0, expense: 0, count: 0 }
+      }
+
+      weeklyData[weekKey].income += item.income
+      weeklyData[weekKey].expense += item.expense
+      weeklyData[weekKey].count++
+    })
+
+    return Object.entries(weeklyData)
+      .map(([week, data]) => ({
+        week: new Date(week).toLocaleDateString("pt-BR", { month: "short", day: "numeric" }),
+        open: data.income * 0.9,
+        high: Math.max(data.income, data.expense),
+        low: Math.min(data.income, data.expense) * 0.8,
+        close: data.expense,
+        volume: data.count,
+      }))
+      .slice(0, 8)
+  }, [dailyData])
+
+  if (type === "pie") {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{getChartTitle()}</CardTitle>
-          <CardDescription>Nenhum dado disponível para exibir</CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center h-64">
-          <div className="text-center text-gray-500">
-            <div className="text-4xl mb-2">📊</div>
-            <p>Adicione algumas transações para ver os gráficos</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="h-[400px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={pieData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              outerRadius={120}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {pieData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
     )
   }
 
-  const renderChart = () => {
-    switch (chartType) {
-      case "pie":
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={120}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        )
+  if (type === "bar") {
+    return (
+      <div className="h-[400px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={barData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis tickFormatter={(value) => `R$ ${value}`} />
+            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            <Legend />
+            <Bar dataKey="receitas" fill="#10B981" name="Receitas" />
+            <Bar dataKey="despesas" fill="#EF4444" name="Despesas" />
+            <Bar dataKey="saldo" fill="#3B82F6" name="Saldo" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
 
-      case "bar":
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis tickFormatter={(value) => formatCurrency(value)} />
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Legend />
-              <Bar dataKey="value" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
-        )
+  if (type === "line") {
+    return (
+      <div className="h-[400px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={lineData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis tickFormatter={(value) => `R$ ${value}`} />
+            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey="valor"
+              stroke="#8884d8"
+              strokeWidth={2}
+              name={filter === "income" ? "Receitas" : filter === "expense" ? "Despesas" : "Saldo"}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
 
-      case "line":
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis tickFormatter={(value) => formatCurrency(value)} />
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Legend />
-              <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        )
-
-      case "candlestick":
-        // For candlestick, we'll use a bar chart with different styling
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis tickFormatter={(value) => formatCurrency(value)} />
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Legend />
-              <Bar dataKey="value" fill="#82ca9d" />
-            </BarChart>
-          </ResponsiveContainer>
-        )
-
-      default:
-        return null
-    }
+  if (type === "candlestick") {
+    return (
+      <div className="h-[400px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={candlestickData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="week" />
+            <YAxis tickFormatter={(value) => `R$ ${value}`} />
+            <Tooltip
+              formatter={(value: number) => formatCurrency(value)}
+              labelFormatter={(label) => `Semana: ${label}`}
+            />
+            <Legend />
+            <Bar dataKey="high" fill="#10B981" name="Máximo" />
+            <Bar dataKey="low" fill="#EF4444" name="Mínimo" />
+            <Bar dataKey="close" fill="#3B82F6" name="Fechamento" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          📈 {getChartTitle()}
-          <span className="text-sm font-normal text-gray-500">
-            ({data.length} {data.length === 1 ? "item" : "itens"})
-          </span>
-        </CardTitle>
-        <CardDescription>
-          Visualização{" "}
-          {chartType === "pie"
-            ? "em pizza"
-            : chartType === "bar"
-              ? "em barras"
-              : chartType === "line"
-                ? "em linha"
-                : "em vela"}{" "}
-          dos dados selecionados
-        </CardDescription>
-      </CardHeader>
-      <CardContent>{renderChart()}</CardContent>
-    </Card>
+    <div className="h-[400px] flex items-center justify-center text-muted-foreground">Selecione um tipo de gráfico</div>
   )
 }
