@@ -1,14 +1,16 @@
 "use server"
 
 import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
 import { sql } from "@/lib/db"
-import { hashPassword, verifyPassword, createSession, logout as logoutUser } from "@/lib/auth"
+import { hashPassword, verifyPassword, createSession } from "@/lib/auth"
 
 export async function register(formData: FormData) {
   const name = formData.get("name") as string
   const email = formData.get("email") as string
   const password = formData.get("password") as string
 
+  // Basic validation
   if (!name || !email || !password) {
     return { error: "Todos os campos são obrigatórios" }
   }
@@ -18,28 +20,31 @@ export async function register(formData: FormData) {
   }
 
   try {
-    // Verificar se o usuário já existe
-    const existingUsers = await sql`
+    // Check if user already exists
+    const existingUser = await sql`
       SELECT id FROM users WHERE email = ${email}
     `
 
-    if (existingUsers.length > 0) {
+    if (existingUser.length > 0) {
       return { error: "Este email já está cadastrado" }
     }
 
-    // Criar novo usuário
+    // Hash password and create user
     const hashedPassword = await hashPassword(password)
-    const users = await sql`
+
+    const result = await sql`
       INSERT INTO users (name, email, password_hash)
       VALUES (${name}, ${email}, ${hashedPassword})
       RETURNING id
     `
 
-    const userId = users[0].id
+    const userId = result[0].id
+
+    // Create session
     await createSession(userId)
   } catch (error) {
     console.error("Erro no registro:", error)
-    return { error: "Erro interno do servidor" }
+    return { error: "Erro interno do servidor. Tente novamente." }
   }
 
   redirect("/dashboard")
@@ -49,35 +54,42 @@ export async function login(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
 
+  // Basic validation
   if (!email || !password) {
     return { error: "Email e senha são obrigatórios" }
   }
 
   try {
+    // Find user by email
     const users = await sql`
       SELECT id, password_hash FROM users WHERE email = ${email}
     `
 
     if (users.length === 0) {
-      return { error: "Email ou senha incorretos" }
+      return { error: "Credenciais inválidas" }
     }
 
     const user = users[0]
+
+    // Verify password
     const isValidPassword = await verifyPassword(password, user.password_hash)
 
     if (!isValidPassword) {
-      return { error: "Email ou senha incorretos" }
+      return { error: "Credenciais inválidas" }
     }
 
+    // Create session
     await createSession(user.id)
   } catch (error) {
     console.error("Erro no login:", error)
-    return { error: "Erro interno do servidor" }
+    return { error: "Erro interno do servidor. Tente novamente." }
   }
 
   redirect("/dashboard")
 }
 
 export async function logout() {
-  await logoutUser()
+  const cookieStore = await cookies()
+  cookieStore.delete("session")
+  redirect("/login")
 }
