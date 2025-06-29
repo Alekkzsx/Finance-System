@@ -1,45 +1,16 @@
 import { neon } from "@neondatabase/serverless"
 
-// Get database URL from environment variables
-function getDatabaseUrl() {
-  const urls = [
-    process.env.DATABASE_URL,
-    process.env.POSTGRES_URL,
-    process.env.POSTGRES_PRISMA_URL,
-    process.env.NEON_DATABASE_URL,
-  ]
-
-  for (const url of urls) {
-    if (url && url.trim()) {
-      return url.trim()
-    }
-  }
-
-  throw new Error("No database URL found in environment variables")
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is required")
 }
 
-// Create singleton connection
-let sqlInstance: ReturnType<typeof neon> | null = null
+export const sql = neon(process.env.DATABASE_URL)
 
-export function sql(query: TemplateStringsArray | string, ...params: any[]) {
-  if (!sqlInstance) {
-    const databaseUrl = getDatabaseUrl()
-    sqlInstance = neon(databaseUrl)
-  }
-
-  if (typeof query === "string") {
-    return sqlInstance(query, params)
-  }
-
-  return sqlInstance(query, ...params)
-}
-
-// Types
 export interface User {
   id: number
   email: string
   name: string
-  created_at: Date
+  created_at: string
 }
 
 export interface Transaction {
@@ -47,7 +18,20 @@ export interface Transaction {
   user_id: number
   custom_id: string
   type: "income" | "expense"
-  amount: number
   description: string
-  created_at: Date
+  amount: number
+  date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DashboardStats {
+  totalIncome: number
+  totalExpenses: number
+  balance: number
+  topProduct: { description: string; amount: number } | null
+  bottomProduct: { description: string; amount: number } | null
+  peakDay: { date: string; amount: number } | null
+  dailyData: Array<{ date: string; income: number; expense: number }>
+  categoryData: Array<{ description: string; amount: number; type: string }>
 }

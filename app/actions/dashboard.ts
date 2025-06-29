@@ -2,174 +2,130 @@
 
 import { sql } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
+import type { DashboardStats } from "@/lib/db"
 
-export interface DashboardStats {
-  totalRevenue: number
-  totalExpense: number
-  netProfit: number
-  topProduct: string
-  peakDay: string
-  chartData: any[]
-  transactionCount: number
-}
-
-export async function getDashboardStats(
-  filter: "all" | "income" | "expense" = "all",
-  chartDataType = "revenue_vs_expense",
-): Promise<DashboardStats> {
-  // Require authentication first
+export async function getDashboardStats(filter: "all" | "income" | "expense" = "all"): Promise<DashboardStats> {
   const user = await requireAuth()
 
   try {
-    // Base query with user isolation
-    let whereClause = "WHERE user_id = $1"
-    const params = [user.id]
-
-    // Apply filter
-    if (filter === "income") {
-      whereClause += " AND type = 'income'"
-    } else if (filter === "expense") {
-      whereClause += " AND type = 'expense'"
-    }
-
-    // Get basic stats
-    const statsQuery = `
+    // Estatísticas básicas
+    const summary = await sql`
       SELECT 
-        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_revenue,
-        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expense,
-        COUNT(*) as transaction_count
+        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income,
+        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expenses
       FROM transactions 
-      ${whereClause}
+      WHERE user_id = ${user.id}
+      ${filter !== "all" ? sql`AND type = ${filter}` : sql``}
     `
 
-    const statsResult = await sql(statsQuery, params)
-    const stats = statsResult[0] || { total_revenue: 0, total_expense: 0, transaction_count: 0 }
+    const totalIncome = Number(summary[0]?.total_income || 0)
+    const totalExpenses = Number(summary[0]?.total_expenses || 0)
+    const balance = totalIncome - totalExpenses
 
-    // Get top product (most frequent in income transactions)
-    const topProductQuery = `
-      SELECT description, COUNT(*) as count
+    // Produto com mais vendas (maior valor)
+    const topProductResult = await sql`
+      SELECT description, SUM(amount) as amount
       FROM transactions 
-      WHERE user_id = $1 AND type = 'income' AND description IS NOT NULL AND description != ''
-      GROUP BY description 
-      ORDER BY count DESC 
+      WHERE user_id = ${user.id}
+      ${filter !== "all" ? sql`AND type = ${filter}` : sql``}
+      GROUP BY description
+      ORDER BY amount DESC
       LIMIT 1
     `
-    const topProductResult = await sql(topProductQuery, [user.id])
-    const topProduct = topProductResult[0]?.description || "Nenhum produto"
 
-    // Get peak day (day with most transactions)
-    const peakDayQuery = `
-      SELECT DATE(created_at) as day, COUNT(*) as count
+    // Produto com menos vendas (menor valor)
+    const bottomProductResult = await sql`
+      SELECT description, SUM(amount) as amount
       FROM transactions 
-      WHERE user_id = $1
-      GROUP BY DATE(created_at) 
-      ORDER BY count DESC 
+      WHERE user_id = ${user.id}
+      ${filter !== "all" ? sql`AND type = ${filter}` : sql``}
+      GROUP BY description
+      ORDER BY amount ASC
       LIMIT 1
     `
-    const peakDayResult = await sql(peakDayQuery, [user.id])
-    const peakDay = peakDayResult[0]?.day ? new Date(peakDayResult[0].day).toLocaleDateString("pt-BR") : "Nenhum dia"
 
-    // Get chart data based on type
-    let chartData = []
+    // Dia de pico de vendas
+    const peakDayResult = await sql`
+      SELECT date, SUM(amount) as amount
+      FROM transactions 
+      WHERE user_id = ${user.id}
+      ${filter !== "all" ? sql`AND type = ${filter}` : sql``}
+      GROUP BY date
+      ORDER BY amount DESC
+      LIMIT 1
+    `
 
-    switch (chartDataType) {
-      case "revenue_by_product":
-        const revenueByProductQuery = `
-          SELECT description as name, SUM(amount) as value
-          FROM transactions 
-          WHERE user_id = $1 AND type = 'income' AND description IS NOT NULL
-          GROUP BY description 
-          ORDER BY value DESC 
-          LIMIT 10
-        `
-        chartData = await sql(revenueByProductQuery, [user.id])
-        break
+    // Dados diários para gráficos
+    const dailyDataResult = await sql`
+      SELECT 
+        date,
+        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+      FROM transactions 
+      WHERE user_id = ${user.id}
+      GROUP BY date
+      ORDER BY date DESC
+      LIMIT 30
+    `
 
-      case "expense_by_category":
-        const expenseByCategoryQuery = `
-          SELECT description as name, SUM(amount) as value
-          FROM transactions 
-          WHERE user_id = $1 AND type = 'expense' AND description IS NOT NULL
-          GROUP BY description 
-          ORDER BY value DESC 
-          LIMIT 10
-        `
-        chartData = await sql(expenseByCategoryQuery, [user.id])
-        break
-
-      case "revenue_vs_expense":
-        const revenueVsExpenseQuery = `
-          SELECT 
-            'Receitas' as name, 
-            COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as value
-          FROM transactions WHERE user_id = $1
-          UNION ALL
-          SELECT 
-            'Despesas' as name, 
-            COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as value
-          FROM transactions WHERE user_id = $1
-        `
-        chartData = await sql(revenueVsExpenseQuery, [user.id])
-        break
-
-      case "profit_by_week":
-        const profitByWeekQuery = `
-          SELECT 
-            DATE_TRUNC('week', created_at) as period,
-            COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) as value
-          FROM transactions 
-          WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '8 weeks'
-          GROUP BY DATE_TRUNC('week', created_at)
-          ORDER BY period
-        `
-        const weekData = await sql(profitByWeekQuery, [user.id])
-        chartData = weekData.map((row: any) => ({
-          name: new Date(row.period).toLocaleDateString("pt-BR"),
-          value: Number.parseFloat(row.value),
-        }))
-        break
-
-      case "profit_by_month":
-        const profitByMonthQuery = `
-          SELECT 
-            DATE_TRUNC('month', created_at) as period,
-            COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) as value
-          FROM transactions 
-          WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '12 months'
-          GROUP BY DATE_TRUNC('month', created_at)
-          ORDER BY period
-        `
-        const monthData = await sql(profitByMonthQuery, [user.id])
-        chartData = monthData.map((row: any) => ({
-          name: new Date(row.period).toLocaleDateString("pt-BR", { month: "short", year: "numeric" }),
-          value: Number.parseFloat(row.value),
-        }))
-        break
-
-      default:
-        chartData = []
-    }
+    // Dados por categoria para gráfico de pizza
+    const categoryDataResult = await sql`
+      SELECT 
+        description,
+        SUM(amount) as amount,
+        type
+      FROM transactions 
+      WHERE user_id = ${user.id}
+      ${filter !== "all" ? sql`AND type = ${filter}` : sql``}
+      GROUP BY description, type
+      ORDER BY amount DESC
+      LIMIT 10
+    `
 
     return {
-      totalRevenue: Number.parseFloat(stats.total_revenue) || 0,
-      totalExpense: Number.parseFloat(stats.total_expense) || 0,
-      netProfit: (Number.parseFloat(stats.total_revenue) || 0) - (Number.parseFloat(stats.total_expense) || 0),
-      topProduct,
-      peakDay,
-      chartData: chartData || [],
-      transactionCount: Number.parseInt(stats.transaction_count) || 0,
+      totalIncome,
+      totalExpenses,
+      balance,
+      topProduct: topProductResult[0]
+        ? {
+            description: topProductResult[0].description,
+            amount: Number(topProductResult[0].amount),
+          }
+        : null,
+      bottomProduct: bottomProductResult[0]
+        ? {
+            description: bottomProductResult[0].description,
+            amount: Number(bottomProductResult[0].amount),
+          }
+        : null,
+      peakDay: peakDayResult[0]
+        ? {
+            date: peakDayResult[0].date,
+            amount: Number(peakDayResult[0].amount),
+          }
+        : null,
+      dailyData: dailyDataResult.map((row) => ({
+        date: row.date,
+        income: Number(row.income),
+        expense: Number(row.expense),
+      })),
+      categoryData: categoryDataResult.map((row) => ({
+        description: row.description,
+        amount: Number(row.amount),
+        type: row.type,
+      })),
     }
   } catch (error) {
-    console.error("Erro ao buscar estatísticas do dashboard:", error)
-    // Return safe default values
+    console.error("Erro ao buscar estatísticas:", error)
     return {
-      totalRevenue: 0,
-      totalExpense: 0,
-      netProfit: 0,
-      topProduct: "Erro ao carregar",
-      peakDay: "Erro ao carregar",
-      chartData: [],
-      transactionCount: 0,
+      totalIncome: 0,
+      totalExpenses: 0,
+      balance: 0,
+      topProduct: null,
+      bottomProduct: null,
+      peakDay: null,
+      dailyData: [],
+      categoryData: [],
     }
   }
 }

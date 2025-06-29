@@ -36,7 +36,7 @@ async function getNextCustomId(userId: number, type: "income" | "expense"): Prom
 }
 
 export async function createTransaction(formData: FormData) {
-  await ensureCustomIdColumn()
+  await ensureCustomIdColumn() // ← NOVO
   const user = await requireAuth()
 
   const type = formData.get("type") as "income" | "expense"
@@ -54,8 +54,10 @@ export async function createTransaction(formData: FormData) {
   }
 
   try {
+    // Se custom_id não foi fornecido, gerar automaticamente
     const finalCustomId = customId || (await getNextCustomId(user.id, type))
 
+    // Verificar se custom_id já existe para este usuário e tipo
     if (customId) {
       const existing = await sql`
         SELECT id FROM transactions 
@@ -82,7 +84,7 @@ export async function createTransaction(formData: FormData) {
 }
 
 export async function updateTransaction(id: number, formData: FormData) {
-  await ensureCustomIdColumn()
+  await ensureCustomIdColumn() // ← NOVO
   const user = await requireAuth()
 
   const type = formData.get("type") as "income" | "expense"
@@ -100,6 +102,7 @@ export async function updateTransaction(id: number, formData: FormData) {
   }
 
   try {
+    // Verificar se custom_id já existe para outro registro
     const existing = await sql`
       SELECT id FROM transactions 
       WHERE user_id = ${user.id} AND type = ${type} AND custom_id = ${customId} AND id != ${id}
@@ -129,7 +132,7 @@ export async function updateTransaction(id: number, formData: FormData) {
 }
 
 export async function deleteTransaction(id: number) {
-  await ensureCustomIdColumn()
+  await ensureCustomIdColumn() // ← NOVO
   const user = await requireAuth()
 
   try {
@@ -151,94 +154,24 @@ export async function deleteTransaction(id: number) {
   }
 }
 
-export async function getTransactionsPaginated(
-  page = 1,
-  limit = 20,
-  filter: "all" | "income" | "expense" = "all",
-  search = "",
-  sortBy = "custom_id",
-  sortOrder: "asc" | "desc" = "asc",
-) {
-  await ensureCustomIdColumn()
+export async function getTransactionsPaginated(page = 1, limit = 20) {
+  await ensureCustomIdColumn() // ← NOVO
   const user = await requireAuth()
   const offset = (page - 1) * limit
 
   try {
-    // Construir query base
-    let baseQuery = sql`
+    const transactions = await sql`
       SELECT * FROM transactions 
       WHERE user_id = ${user.id}
-    `
-
-    // Aplicar filtro de tipo
-    if (filter !== "all") {
-      baseQuery = sql`${baseQuery} AND type = ${filter}`
-    }
-
-    // Aplicar busca
-    if (search) {
-      baseQuery = sql`
-        ${baseQuery} AND (
-          description ILIKE ${"%" + search + "%"} OR
-          custom_id ILIKE ${"%" + search + "%"} OR
-          amount::text ILIKE ${"%" + search + "%"} OR
-          date::text ILIKE ${"%" + search + "%"}
-        )
-      `
-    }
-
-    // Aplicar ordenação
-    let orderClause
-    if (sortBy === "custom_id") {
-      // Ordena receitas antes de despesas e converte apenas IDs válidos (R/D + dígitos).
-      orderClause = sql`
-        ORDER BY
-          CASE WHEN type = 'income' THEN 0 ELSE 1 END,
-          CASE
-            WHEN custom_id ~ '^[RD][0-9]+$'
-              THEN CAST(NULLIF(SUBSTRING(custom_id FROM 2), '') AS INTEGER)
-            ELSE NULL
-          END ${sortOrder === "asc" ? sql`ASC` : sql`DESC`},
-          custom_id ${sortOrder === "asc" ? sql`ASC` : sql`DESC`}
-      `
-    } else if (sortBy === "amount") {
-      orderClause = sql`ORDER BY amount ${sortOrder === "asc" ? sql`ASC` : sql`DESC`}`
-    } else if (sortBy === "date") {
-      orderClause = sql`ORDER BY date ${sortOrder === "asc" ? sql`ASC` : sql`DESC`}`
-    } else if (sortBy === "description") {
-      orderClause = sql`ORDER BY description ${sortOrder === "asc" ? sql`ASC` : sql`DESC`}`
-    } else {
-      orderClause = sql`ORDER BY created_at DESC`
-    }
-
-    const transactions = await sql`
-      ${baseQuery}
-      ${orderClause}
+      ORDER BY 
+        CASE WHEN type = 'income' THEN 0 ELSE 1 END,
+        custom_id ASC
       LIMIT ${limit} OFFSET ${offset}
     `
 
-    // Contar total com os mesmos filtros
-    let countQuery = sql`
-      SELECT COUNT(*) as total FROM transactions 
-      WHERE user_id = ${user.id}
+    const countResult = await sql`
+      SELECT COUNT(*) as total FROM transactions WHERE user_id = ${user.id}
     `
-
-    if (filter !== "all") {
-      countQuery = sql`${countQuery} AND type = ${filter}`
-    }
-
-    if (search) {
-      countQuery = sql`
-        ${countQuery} AND (
-          description ILIKE ${"%" + search + "%"} OR
-          custom_id ILIKE ${"%" + search + "%"} OR
-          amount::text ILIKE ${"%" + search + "%"} OR
-          date::text ILIKE ${"%" + search + "%"}
-        )
-      `
-    }
-
-    const countResult = await countQuery
 
     const total = Number(countResult[0].total)
     const totalPages = Math.ceil(total / limit)
