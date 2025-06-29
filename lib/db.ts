@@ -1,41 +1,45 @@
 import { neon } from "@neondatabase/serverless"
 
-/**
- * Carrega a URL de conexão de forma flexível:
- * - Primeiro tenta DATABASE_URL (usado localmente)
- * - Depois POSTGRES_URL (Vercel/Postgres)
- * - Depois POSTGRES_URL_NON_POOLING (caso sem pool)
- */
-const DATABASE_URL =
-  process.env.DATABASE_URL ||
-  process.env.POSTGRES_URL ||
-  process.env.POSTGRES_URL_NON_POOLING ||
-  process.env.POSTGRES_PRISMA_URL
+// Get database URL from environment variables
+function getDatabaseUrl() {
+  const urls = [
+    process.env.DATABASE_URL,
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_PRISMA_URL,
+    process.env.NEON_DATABASE_URL,
+  ]
 
-if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL (ou POSTGRES_URL) não encontrada. Verifique as variáveis de ambiente.")
-}
-
-/**
- * Mantém uma única instância de conexão (singleton) para evitar
- * múltiplas criações em ambiente serverless.
- */
-let _sql: ReturnType<typeof neon> | null = null
-export const sql = (...args: Parameters<ReturnType<typeof neon>>) => {
-  if (!_sql) {
-    _sql = neon(DATABASE_URL)
+  for (const url of urls) {
+    if (url && url.trim()) {
+      return url.trim()
+    }
   }
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore – Neon aceita o spread de Arguments
-  return _sql(...args)
+
+  throw new Error("No database URL found in environment variables")
 }
 
-/** Tipagens já existentes permanecem abaixo (inalteradas) */
+// Create singleton connection
+let sqlInstance: ReturnType<typeof neon> | null = null
+
+export function sql(query: TemplateStringsArray | string, ...params: any[]) {
+  if (!sqlInstance) {
+    const databaseUrl = getDatabaseUrl()
+    sqlInstance = neon(databaseUrl)
+  }
+
+  if (typeof query === "string") {
+    return sqlInstance(query, params)
+  }
+
+  return sqlInstance(query, ...params)
+}
+
+// Types
 export interface User {
   id: number
   email: string
   name: string
-  created_at: string
+  created_at: Date
 }
 
 export interface Transaction {
@@ -43,20 +47,7 @@ export interface Transaction {
   user_id: number
   custom_id: string
   type: "income" | "expense"
-  description: string
   amount: number
-  date: string
-  created_at: string
-  updated_at: string
-}
-
-export interface DashboardStats {
-  totalIncome: number
-  totalExpenses: number
-  balance: number
-  topProduct: { description: string; amount: number } | null
-  bottomProduct: { description: string; amount: number } | null
-  peakDay: { date: string; amount: number } | null
-  dailyData: Array<{ date: string; income: number; expense: number }>
-  categoryData: Array<{ description: string; amount: number; type: string }>
+  description: string
+  created_at: Date
 }
